@@ -113,7 +113,7 @@ def run_notebook_node(
         notebook_path=None,
         input_string_replacements=None,
         **execute_kwargs
-    ):
+):
     """Execute a notebook node
 
     Args:

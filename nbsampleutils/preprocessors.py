@@ -28,3 +28,27 @@ class ReplaceCodeInputStringsPreprocessor(Preprocessor):
             for old_value, new_value in self.string_replacements.items():
                 cell.source = cell.source.replace(old_value, new_value)
         return cell, resources
+
+
+class RemoveTaggedCellsPreprocessor(Preprocessor):
+    """Preprocessor to remove code cells containing a given string"""
+
+    def __init__(self, tag_string=None):
+        self.tag_string = tag_string
+        self.indices_to_delete = []
+        super().__init__()
+
+    def preprocess_cell(self, cell, resources, index):
+        # The cells must be deleted from the end to the beginning of the
+        # notebook to avoid shifting indices as cells are deleted
+        if cell.cell_type == "code":
+            if self.tag_string in cell.source:
+                self.indices_to_delete.insert(0, index)
+
+        return cell, resources
+
+    def preprocess(self, nb, resources):
+        super().preprocess(nb, resources)
+
+        for index in self.indices_to_delete:
+            del nb.cells[index]

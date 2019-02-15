@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for custom nbconvert preprocessors"""
 
+import nbformat
+
 from nbsampleutils import preprocessors
 from nbsampleutils import utils
 
@@ -35,12 +37,78 @@ def test_replace_code_input_strings_preprocessor():
 
 
 def test_replace_code_input_strings_handles_no_matching_strings():
-    cell_contents = 'print("nothing to replace here")'
-    notebook_node = utils.make_notebook_node([cell_contents])
+    cell_contents = ['print("nothing to replace here")']
+    notebook_node = utils.make_notebook_node(cell_contents)
     processor = preprocessors.ReplaceCodeInputStringsPreprocessor(
         string_replacements={"thing_to_replace": "replacer"}
     )
 
     processor.preprocess(notebook_node, {})
 
-    assert notebook_node.cells[0].source == cell_contents
+    assert notebook_node.cells[0].source == cell_contents[0]
+
+
+def test_remove_a_tagged_cell():
+    cell_contents = ["# TEST_CELL", "print(2 + 2)"]
+    notebook_node = utils.make_notebook_node(cell_contents)
+    assert len(notebook_node.cells) == 2
+    processor = preprocessors.RemoveTaggedCellsPreprocessor(
+        tag_string="# TEST_CELL"
+    )
+
+    processor.preprocess(notebook_node, {})
+
+    assert len(notebook_node.cells) == 1
+    assert notebook_node.cells[0].source == cell_contents[1]
+
+
+def test_remove_multiple_tagged_cells():
+    cell_contents = [
+        "print(2 + 2)",
+        "# TEST_CELL\nassert 2 + 2 == 4",
+        "my_var = 40 * 2",
+        "# TEST_CELL\nassert my_var == 80"
+    ]
+    notebook_node = utils.make_notebook_node(cell_contents)
+    assert len(notebook_node.cells) == 4
+    processor = preprocessors.RemoveTaggedCellsPreprocessor(
+        tag_string="# TEST_CELL"
+    )
+
+    processor.preprocess(notebook_node, {})
+
+    assert len(notebook_node.cells) == 2
+    assert notebook_node.cells[0].source == cell_contents[0]
+    assert notebook_node.cells[1].source == cell_contents[2]
+
+
+def test_remove_tagged_cells_handles_no_tagged_cells():
+    cell_contents = ["1 + 1", "print(2 + 2)"]
+    notebook_node = utils.make_notebook_node(cell_contents)
+    assert len(notebook_node.cells) == 2
+    processor = preprocessors.RemoveTaggedCellsPreprocessor(
+        tag_string="# TEST_CELL"
+    )
+
+    processor.preprocess(notebook_node, {})
+
+    assert len(notebook_node.cells) == 2
+    processed_cell_sources = set(cell.source for cell in notebook_node.cells)
+    assert processed_cell_sources == set(cell_contents)
+
+
+def test_remove_tagged_cells_skips_markdown_cells():
+    notebook_node = utils.make_notebook_node(["1 + 1"])
+    notebook_node.cells.append(
+        nbformat.v4.new_markdown_cell(source="Sometimes we add a # TEST_CELL"))
+    original_cell_sources = set(cell.source for cell in notebook_node.cells)
+    assert len(notebook_node.cells) == 2
+    processor = preprocessors.RemoveTaggedCellsPreprocessor(
+        tag_string="# TEST_CELL"
+    )
+
+    processor.preprocess(notebook_node, {})
+
+    assert len(notebook_node.cells) == 2
+    processed_cell_sources = set(cell.source for cell in notebook_node.cells)
+    assert processed_cell_sources == original_cell_sources
